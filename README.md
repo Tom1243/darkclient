@@ -2,6 +2,8 @@
 
 If you're a player, rather than a developer, just follow the [单机版教程](./standalone_version.md)
 
+For the Windows join/host launcher, see [windows/README.md](./windows/README.md). It uses the supplied client's `window.bat` entry point when available, while the game credentials are entered in the game's own Connect screen.
+
 TL;DR
 
 ## compile
