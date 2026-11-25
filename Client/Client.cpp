@@ -872,7 +872,27 @@ long FAR PASCAL WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam
 		//	WM_SYSCOMMAND
 		// 
 		//---------------------------------------------------------------
-		case WM_SYSCOMMAND:
+		case WM_CREATE:
+            if (GetEnvironmentVariableW(L"DARKEDEN_LAUNCHER", NULL, 0)) {
+                HMENU menu = GetSystemMenu(hWnd, FALSE);
+                AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
+                AppendMenuW(menu, MF_STRING, 0x1E00, L"Server management...");
+            }
+            break;
+        case WM_SYSCOMMAND:
+            if ((wParam & 0xFFF0) == 0x1E00) {
+                wchar_t path[MAX_PATH];
+                DWORD length = GetEnvironmentVariableW(L"DARKEDEN_LAUNCHER", path, MAX_PATH);
+                if (length && length < MAX_PATH) {
+                    STARTUPINFOW info = { sizeof(STARTUPINFOW) };
+                    PROCESS_INFORMATION process = {};
+                    if (CreateProcessW(path, NULL, NULL, NULL, FALSE, 0, NULL, NULL, &info, &process)) {
+                        CloseHandle(process.hThread);
+                        CloseHandle(process.hProcess);
+                    }
+                }
+                return 0;
+            }
             // Prevent moving/sizing and power loss in fullscreen mode
             switch( wParam )
             {
