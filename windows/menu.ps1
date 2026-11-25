@@ -5,6 +5,7 @@ Add-Type -AssemblyName System.Drawing
 $stateDir = Join-Path $env:LOCALAPPDATA 'OpenDarkEden'
 [void](New-Item -ItemType Directory -Force $stateDir)
 $settings = Join-Path $stateDir 'client.txt'
+$serverHistory = Join-Path $stateDir 'servers.txt'
 $compose = Join-Path $PSScriptRoot 'server\standalone\compose.yaml'
 function Stack([string[]]$Arguments) {
     if (!(Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Install and start Docker Desktop with Linux containers to host a world.' }
@@ -17,8 +18,23 @@ function Address {
     if ($ip -notmatch '^(\d{1,3}\.){3}\d{1,3}$' -or ![Net.IPAddress]::TryParse($ip,[ref]$parsed)) { throw 'Enter a valid IPv4 address.' }
     return $ip
 }
+function RememberAddress([string]$ip) {
+    $saved = @()
+    if (Test-Path -LiteralPath $serverHistory) {
+        $saved = @(Get-Content -LiteralPath $serverHistory | Where-Object { $_ -and $_.Trim() })
+    }
+    $addresses = @($ip) + @($saved | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne $ip })
+    $addresses = @($addresses | Select-Object -Unique | Select-Object -First 20)
+    [IO.File]::WriteAllLines($serverHistory,[string[]]$addresses,[Text.Encoding]::UTF8)
+    $address.BeginUpdate()
+    $address.Items.Clear()
+    foreach ($savedIp in $addresses) { [void]$address.Items.Add($savedIp) }
+    $address.EndUpdate()
+    $address.Text = $ip
+}
 function LaunchGame {
     $ip = Address
+    RememberAddress $ip
     $dir = if (Test-Path $settings) { Get-Content -LiteralPath $settings -Raw }
     if (!$dir -or !(Test-Path -LiteralPath (Join-Path $dir 'fengshen.exe'))) {
         $pick = New-Object Windows.Forms.OpenFileDialog
@@ -72,14 +88,19 @@ function Button($text,$x,$y,$width,$action) {
     $form.Controls.Add($b)
 }
 Label 'Server IPv4 address (use 127.0.0.1 for solo play)' 20
-$address = New-Object Windows.Forms.TextBox
+$address = New-Object Windows.Forms.ComboBox
+$address.DropDownStyle = [Windows.Forms.ComboBoxStyle]::DropDown
 $address.SetBounds(20,45,380,28)
-$address.Text = '127.0.0.1'
+if (Test-Path -LiteralPath $serverHistory) {
+    foreach ($savedIp in (Get-Content -LiteralPath $serverHistory | Where-Object { $_ -and $_.Trim() })) { [void]$address.Items.Add($savedIp.Trim()) }
+}
+if ($address.Items.Count) { $address.SelectedIndex = 0 } else { $address.Text = '127.0.0.1' }
 $form.Controls.Add($address)
 Button 'Play / join world' 20 85 380 { LaunchGame }
 Label 'Host a world on this PC' 144
 Button 'Start server' 20 170 185 {
     $env:DARKEDEN_IP = Address
+    RememberAddress $env:DARKEDEN_IP
     $env:DARKEDEN_BIND = if ($env:DARKEDEN_IP -eq '127.0.0.1') { '127.0.0.1' } else { '0.0.0.0' }
     Stack @('up','-d','--wait')
     [void][Windows.Forms.MessageBox]::Show('World ready. Create a player, then choose Play.','Dark Eden')
